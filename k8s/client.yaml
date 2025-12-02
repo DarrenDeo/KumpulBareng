@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kb-client
+  namespace: kumpulbareng
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kb-client
+  template:
+    metadata:
+      labels:
+        app: kb-client
+    spec:
+      containers:
+        - name: kb-client
+          image: kb-client
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: kumpulbareng-config
+                  key: NEXT_PUBLIC_API_URL
+          ports:
+            - containerPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kb-client
+  namespace: kumpulbareng
+spec:
+  selector:
+    app: kb-client
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000

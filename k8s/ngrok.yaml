@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kb-ngrok
+  namespace: kumpulbareng
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kb-ngrok
+  template:
+    metadata:
+      labels:
+        app: kb-ngrok
+    spec:
+      containers:
+        - name: ngrok
+          image: ngrok/ngrok:alpine
+          env:
+            - name: NGROK_AUTHTOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: kumpulbareng-secrets
+                  key: NGROK_AUTHTOKEN
+          # Kita suruh ngrok forward service kb-server:5000 di dalam cluster
+          args:
+            - "http"
+            - "kb-server:5000"

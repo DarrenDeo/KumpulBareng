@@ -1,0 +1,50 @@
+# ===== Node / JS dependencies =====
+**/node_modules/
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+
+# ===== Build artifacts =====
+**/dist/
+**/build/
+**/.next/
+**/out/
+
+# ===== Logs =====
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ===== Environment files (jangan push secret) =====
+.env
+.env.*
+*.env
+*.env.*
+!*.env.example
+!*/.env.example
+
+# ===== Prisma =====
+.prisma/
+**/dev.db
+
+# ===== Docker data / volume lokal =====
+db-data/
+docker-data/
+
+# ===== Terraform =====
+infra/terraform/.terraform/
+infra/terraform/*tfstate*
+infra/terraform/crash.log
+infra/terraform/crash.*.log
+infra/terraform/terraform.tfvars
+
+# ===== Editor / OS =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ===== Misc =====
+*.pid

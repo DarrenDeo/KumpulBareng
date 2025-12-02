@@ -1,0 +1,15 @@
+# Salin file ini jadi "terraform.tfvars" dan isi nilai aslinya.
+# JANGAN commit terraform.tfvars ke Git.
+
+midtrans_server_key = ""
+midtrans_client_key = ""
+jwt_secret          = ""
+ngrok_authtoken     = ""
+
+# Kalau mau override default:
+# client_url          = "http://localhost:3000"
+# next_public_api_url = "http://localhost:5000"
+# db_user             = "myuser"
+# db_password         = "mypassword"
+# db_name             = "kumpulbareng_db"
+# namespace           = "kumpulbareng"

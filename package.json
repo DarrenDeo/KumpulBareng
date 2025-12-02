@@ -1,0 +1,20 @@
+{
+  "name": "kumpulbareng",
+  "version": "1.0.0",
+  "description": "Platform untuk mencari teman dan kumpul bareng.",
+  "main": "index.js",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=client\" \"npm run dev --workspace=server\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

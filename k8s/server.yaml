@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kb-server
+  namespace: kumpulbareng
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kb-server
+  template:
+    metadata:
+      labels:
+        app: kb-server
+    spec:
+      containers:
+        - name: kb-server
+          image: kb-server
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PORT
+              value: "5000"
+            - name: NODE_ENV
+              value: "production"
+            - name: CLIENT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: kumpulbareng-config
+                  key: CLIENT_URL
+            - name: DATABASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: kumpulbareng-config
+                  key: DATABASE_URL
+            - name: MIDTRANS_SERVER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: kumpulbareng-secrets
+                  key: MIDTRANS_SERVER_KEY
+            - name: MIDTRANS_CLIENT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: kumpulbareng-secrets
+                  key: MIDTRANS_CLIENT_KEY
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: kumpulbareng-secrets
+                  key: JWT_SECRET
+            # Jangan jalankan ngrok dari Node.js, kita pakai pod sendiri
+            - name: ENABLE_NGROK
+              value: "false"
+          ports:
+            - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kb-server
+  namespace: kumpulbareng
+spec:
+  selector:
+    app: kb-server
+  ports:
+    - name: http
+      port: 5000
+      targetPort: 5000
