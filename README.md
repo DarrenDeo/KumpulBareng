@@ -620,11 +620,3 @@ Beberapa ide pengembangan selanjutnya:
 * Deploy ke cloud Kubernetes (misal GKE / EKS) dan gunakan Terraform untuk provisioning cluster sekaligus.
 
 ---
-
-## Catatan Lisensi
-
-Saat ini repo belum menyertakan file lisensi resmi. Untuk penggunaan di luar keperluan belajar / tugas pribadi, sebaiknya diskusikan dulu dengan pemilik repository.
-
----
-
-Selamat bereksperimen dengan **KumpulBareng**. 🎉
