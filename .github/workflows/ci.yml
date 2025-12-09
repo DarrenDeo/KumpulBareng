@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+
+jobs:
+  client:
+    name: Client - build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Pakai npm biar aman walau struktur lockfile kamu campur
+      - name: Install deps
+        working-directory: client
+        run: npm install
+
+      - name: Lint (if available)
+        working-directory: client
+        run: npm run lint --if-present
+
+      - name: Build
+        working-directory: client
+        run: npm run build
+
+  server:
+    name: Server - sanity check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install deps
+        working-directory: server
+        run: npm install
+
+      # Minimal check tanpa nambah tooling
+      - name: Node syntax check
+        working-directory: server
+        run: node --check src/index.js
+
+      # Prisma validate aman untuk CI
+      - name: Prisma validate
+        working-directory: server
+        run: npx prisma validate
+
+
+  k8s-manifest-check:
+    name: K8s Manifest Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Opsional: validasi YAML secara umum
+      - name: Install yamllint
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yamllint
+
+      - name: Lint k8s YAML
+        run: yamllint k8s/
+
+      # Opsional yang lebih "keren": kubectl dry-run client
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "latest"
+
+      - name: Kubectl dry-run
+        run: |
+          kubectl apply --dry-run=client -f k8s/namespace.yaml
+          kubectl apply --dry-run=client -f k8s/config-and-secrets.yaml
+          kubectl apply --dry-run=client -f k8s/postgres.yaml
+          kubectl apply --dry-run=client -f k8s/server.yaml
+          kubectl apply --dry-run=client -f k8s/client.yaml
+          kubectl apply --dry-run=client -f k8s/ngrok.yaml
+          
+          
+  terraform:
+    name: Terraform - fmt check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # Aman karena tidak butuh koneksi cluster
+      - name: Terraform fmt (check)
+        working-directory: infra/terraform
+        run: terraform fmt -check -recursive
