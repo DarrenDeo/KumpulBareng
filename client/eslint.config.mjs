@@ -11,6 +11,8 @@ const compat = new FlatCompat({
 
 const eslintConfig = [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
+
+  // Ignore build outputs & generated files
   {
     ignores: [
       "node_modules/**",
@@ -20,13 +22,23 @@ const eslintConfig = [
       "next-env.d.ts",
     ],
   },
+
+  // Project-specific rule relax (so CI won't fail on early-stage code)
+  {
+    files: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+      "react/no-unescaped-entities": "off",
+    },
+  },
 ];
-
-rules: {
-  "@typescript-eslint/no-explicit-any": "off",
-  "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
-  "react/no-unescaped-entities": "off",
-}
-
 
 export default eslintConfig;

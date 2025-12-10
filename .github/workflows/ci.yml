@@ -57,7 +57,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Validasi struktur YAML
       - name: Install yamllint
         run: |
           python -m pip install --upgrade pip
@@ -65,10 +64,8 @@ jobs:
 
       - name: Lint k8s YAML
         run: |
-          yamllint -d '{extends: default, rules: {line-length: disable}}' k8s/*.yaml
+          yamllint -d "{extends: default, rules: {line-length: disable}}" k8s/*.yaml
 
-
-      # Validasi schema Kubernetes TANPA cluster
       - name: Install kubeconform
         run: |
           curl -L -o /tmp/kubeconform.tar.gz \
