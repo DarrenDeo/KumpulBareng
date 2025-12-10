@@ -12,10 +12,10 @@ resource "kubernetes_config_map" "app_config" {
     NEXT_PUBLIC_API_URL = var.next_public_api_url
 
     # Konfigurasi database untuk backend
-    DB_HOST      = "postgres"                     # pakai nama SERVICE di Kubernetes
-    DB_PORT      = "5432"
-    DB_USER      = var.db_user
-    DB_NAME      = var.db_name
+    DB_HOST = "postgres" # pakai nama SERVICE di Kubernetes
+    DB_PORT = "5432"
+    DB_USER = var.db_user
+    DB_NAME = var.db_name
 
     # Koneksi full, dipakai oleh backend sebagai DATABASE_URL
     DATABASE_URL = "postgresql://${var.db_user}:${var.db_password}@postgres:5432/${var.db_name}"

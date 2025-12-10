@@ -28,8 +28,8 @@ resource "kubernetes_deployment" "kb_server" {
 
       spec {
         container {
-          name  = "kb-server"
-          image = "kb-server"          # image lokal
+          name              = "kb-server"
+          image             = "kb-server" # image lokal
           image_pull_policy = "IfNotPresent"
 
           port {
@@ -158,8 +158,8 @@ resource "kubernetes_deployment" "kb_client" {
 
       spec {
         container {
-          name  = "kb-client"
-          image = "kb-client"
+          name              = "kb-client"
+          image             = "kb-client"
           image_pull_policy = "IfNotPresent"
 
           port {

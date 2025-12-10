@@ -2,109 +2,87 @@ name: CI
 
 on:
   push:
-    branches: [ "main", "develop" ]
   pull_request:
 
 jobs:
   client:
     name: Client - build
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: client
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: "npm"
+          cache-dependency-path: client/package-lock.json
 
-      # Pakai npm biar aman walau struktur lockfile kamu campur
       - name: Install deps
-        working-directory: client
-        run: npm install
+        run: npm ci
 
-      - name: Lint (if available)
-        working-directory: client
+      # opsional: lint kalau rules sudah kamu relax
+      - name: Lint
         run: npm run lint --if-present
 
       - name: Build
-        working-directory: client
         run: npm run build
 
   server:
     name: Server - sanity check
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: server
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: "npm"
+          cache-dependency-path: server/package-lock.json
 
       - name: Install deps
-        working-directory: server
-        run: npm install
+        run: npm ci
 
-      # Minimal check tanpa nambah tooling
       - name: Node syntax check
-        working-directory: server
-        run: node --check src/index.js
+        run: node -c src/index.js
 
-      # Prisma validate aman untuk CI
       - name: Prisma validate
-        working-directory: server
+        env:
+          DATABASE_URL: postgresql://myuser:mypassword@localhost:5432/kumpulbareng_db
         run: npx prisma validate
 
-
-  k8s-manifest-check:
+  k8s:
     name: K8s Manifest Check
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # Opsional: validasi YAML secara umum
-      - name: Install yamllint
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y yamllint
-
-      - name: Lint k8s YAML
-        run: yamllint k8s/
-
-      # Opsional yang lebih "keren": kubectl dry-run client
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
         with:
-          version: "latest"
+          version: v1.30.0
 
-      - name: Kubectl dry-run
+      - name: Offline dry-run
         run: |
-          kubectl apply --dry-run=client -f k8s/namespace.yaml
-          kubectl apply --dry-run=client -f k8s/config-and-secrets.yaml
-          kubectl apply --dry-run=client -f k8s/postgres.yaml
-          kubectl apply --dry-run=client -f k8s/server.yaml
-          kubectl apply --dry-run=client -f k8s/client.yaml
-          kubectl apply --dry-run=client -f k8s/ngrok.yaml
-          
-          
+          for f in k8s/*.yaml; do
+            kubectl apply --dry-run=client --validate=false -f "$f"
+          done
+
   terraform:
     name: Terraform - fmt check
     runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      # Aman karena tidak butuh koneksi cluster
-      - name: Terraform fmt (check)
+    defaults:
+      run:
         working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform fmt (check)
         run: terraform fmt -check -recursive

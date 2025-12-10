@@ -10,7 +10,10 @@ COPY next.config.ts ./
 COPY postcss.config.js ./
 COPY tailwind.config.js ./
 COPY eslint.config.mjs ./
-COPY .env.local ./.env.local
+#COPY .env.local ./.env.local
+
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 # Copy source dan public
 COPY src ./src
