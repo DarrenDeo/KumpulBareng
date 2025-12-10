@@ -11,29 +11,21 @@ jobs:
     defaults:
       run:
         working-directory: client
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # Lebih aman daripada npm ci jika client/package-lock.json tidak ada
       - name: Install deps
-        run: npm install --no-audit --no-fund
+        run: npm ci
 
-      # Tetap jalan tapi tidak mematikan pipeline
-      - name: Lint (non-blocking)
+      - name: Lint
         run: npm run lint --if-present
-        continue-on-error: true
 
       - name: Build
-        env:
-          NEXT_PUBLIC_API_URL: http://localhost:5000
         run: npm run build
-
 
   server:
     name: Server - sanity check
@@ -41,18 +33,15 @@ jobs:
     defaults:
       run:
         working-directory: server
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # Lebih aman daripada npm ci jika server/package-lock.json tidak ada
       - name: Install deps
-        run: npm install --no-audit --no-fund
+        run: npm ci
 
       - name: Node syntax check
         run: node -c src/index.js
@@ -62,26 +51,38 @@ jobs:
         env:
           DATABASE_URL: "postgresql://user:password@localhost:5432/kumpulbareng_ci"
 
-
   k8s:
     name: K8s Manifest Check
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: v1.30.0
-
-      - name: Offline dry-run (no cluster)
+      # Validasi struktur YAML
+      - name: Install yamllint
         run: |
-          for f in k8s/*.yaml; do
-            echo "Checking $f"
-            kubectl apply --dry-run=client --validate=false -f "$f"
-          done
+          python -m pip install --upgrade pip
+          pip install yamllint
 
+      - name: Lint k8s YAML
+        run: |
+          yamllint -d '{extends: default, rules: {line-length: disable}}' k8s/*.yaml
+
+
+      # Validasi schema Kubernetes TANPA cluster
+      - name: Install kubeconform
+        run: |
+          curl -L -o /tmp/kubeconform.tar.gz \
+            https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz
+          tar -xzf /tmp/kubeconform.tar.gz -C /tmp
+          sudo mv /tmp/kubeconform /usr/local/bin/kubeconform
+
+      - name: Validate Kubernetes manifests (offline)
+        run: |
+          kubeconform \
+            -summary \
+            -ignore-missing-schemas \
+            -kubernetes-version 1.30.0 \
+            k8s/*.yaml
 
   terraform:
     name: Terraform - fmt check
@@ -89,12 +90,10 @@ jobs:
     defaults:
       run:
         working-directory: infra/terraform
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v3
 
       - name: Terraform fmt (check)
         run: terraform fmt -check -recursive
