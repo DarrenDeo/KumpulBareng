@@ -33,7 +33,7 @@ export default function CreateEventPage() {
         { title, description, category, location, eventDate, price, maxParticipants },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      toast.success('Events berhasil dibuat! Anda akan diarahkan ke Dashboard.');
+      toast.success('Event berhasil dibuat! Anda akan diarahkan ke Dashboard.');
       setTimeout(() => router.push('/dashboard'), 2000);
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Gagal membuat Events.');
@@ -65,7 +65,7 @@ export default function CreateEventPage() {
             required 
           />
           
-          <Button type="submit">Buat Events</Button>
+          <Button type="submit">Buat Event</Button>
           <Link href="/dashboard" className="block text-center text-sm text-blue-500 hover:underline mt-4">
             Batal
           </Link>
