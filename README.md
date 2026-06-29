@@ -330,8 +330,6 @@ ngrok_authtoken     = "xxx"
 postgres_password   = "mypassword"
 ```
 
-> **Penting:** Jangan pernah commit key asli ke git publik. Gunakan file `.tfvars` lokal, `.env`, atau secret manager lain yang tidak ikut dipush.
-
 ---
 
 ## Cara Menjalankan Aplikasi
