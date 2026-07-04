@@ -20,17 +20,22 @@ services:
     environment:
       # Server akan terhubung ke database melalui nama service 'db'
       DATABASE_URL: "postgresql://myuser:mypassword@db:5432/kumpulbareng_db"
+      CLIENT_URL: "http://localhost:3000"
+      JWT_SECRET: "${JWT_SECRET:-CHANGE_ME_FOR_LOCAL_DEV}"
     # Tunggu hingga service 'db' siap sebelum memulai 'server'
     depends_on:
       - db
 
   # 3. Konfigurasi Frontend Client
   client:
-    # Build dari Dockerfile di dalam folder ./client
-    build: ./client
+    build:
+      context: ./client
+      args:
+        NEXT_PUBLIC_API_URL: "http://localhost:5000"
     ports:
       - "3000:3000"
-    # Tunggu hingga service 'server' siap
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:5000
     depends_on:
       - server
 

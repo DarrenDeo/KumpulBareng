@@ -31,35 +31,44 @@ model User {
 }
 
 model Event {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  category    String
-  location    String
-  eventDate   DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default(cuid())
+  title           String
+  description     String
+  category        String
+  location        String
+  eventDate       DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
   
-  // Relasi: User yang membuat Events ini
-  author      User     @relation("CreatedEvents", fields: [authorId], references: [id])
-  authorId    String
+  // Relasi: User yang membuat Event ini
+  author          User     @relation("CreatedEvents", fields: [authorId], references: [id])
+  authorId        String
   
-  // Relasi: User yang ikut Events ini
-  participants User[]   @relation("JoinedEvents")
+  // Relasi: User yang ikut Event ini
+  participants    User[]   @relation("JoinedEvents")
 
-  price          Int
+  price           Int
   maxParticipants Int
   transactions    Transaction[]
-}
 
-// ... (model User dan Event yang sudah ada) ...
+  // ============================================================
+  // INDEXES — Mempercepat query yang sering digunakan
+  // ============================================================
+  @@index([category])         // Filter event by kategori
+  @@index([location])         // Filter event by lokasi
+  @@index([eventDate])        // Sort/filter event by tanggal
+  @@index([authorId])         // Query event by pembuat
+  @@index([createdAt])        // Sort event by waktu dibuat
+  @@index([price])            // Filter gratis/berbayar
+}
 
 model Transaction {
   id            String   @id @default(cuid())
   orderId       String   @unique
-  status        String   // e.g., "PENDING", "SUCCESS", "FAILED"
+  status        String   // "PENDING", "SUCCESS", "FAILED"
   amount        Int
   createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt   // Track kapan status berubah
 
   // Relasi ke User dan Event
   user          User     @relation(fields: [userId], references: [id])
@@ -67,5 +76,11 @@ model Transaction {
   event         Event    @relation(fields: [eventId], references: [id])
   eventId       String
 
-  // Tambahkan relasi balik di model User dan Event
+  // ============================================================
+  // INDEXES — Mempercepat query transaksi
+  // ============================================================
+  @@index([userId])           // Query transaksi by user
+  @@index([eventId])          // Query transaksi by event
+  @@index([status])           // Filter by status pembayaran
+  @@index([userId, eventId])  // Composite: cek transaksi user+event
 }

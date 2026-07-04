@@ -6,6 +6,7 @@ const nextConfig = {
     // meskipun proyek Anda memiliki error ESLint.
     ignoreDuringBuilds: true,
   },
+  output: 'standalone',
 };
 
 export default nextConfig;

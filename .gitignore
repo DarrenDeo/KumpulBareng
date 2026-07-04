@@ -48,3 +48,7 @@ Thumbs.db
 
 # ===== Misc =====
 *.pid
+
+# ===== Test artifacts =====
+playwright-report/
+test-results/

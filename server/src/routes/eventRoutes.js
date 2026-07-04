@@ -11,27 +11,44 @@ const {
   leaveEvent,
 } = require('../controllers/eventController');
 const { protect } = require('../middleware/authMiddleware');
+const validate = require('../middleware/validate');
+const { createEventSchema, updateEventSchema } = require('../validators/eventSchema');
 
-// GET /api/events           → semua event (public)
+// ============================================================
+// PUBLIC ROUTES
+// ============================================================
+
+// GET /api/events — List semua event (public, mendukung pagination & filter)
+//   Query params: page, limit, category, location, search, priceType, upcoming, sort
 router.get('/', getEvents);
 
-// POST /api/events          → buat event baru (butuh login)
-router.post('/', protect, createEvent);
+// ============================================================
+// PROTECTED ROUTES (butuh login)
+// ============================================================
 
-// GET /api/events/myevents  → event yang dibuat user ini
+// POST /api/events — Buat event baru (dengan validasi Zod)
+router.post('/', protect, validate(createEventSchema), createEvent);
+
+// GET /api/events/myevents — Event yang dibuat oleh user ini
 router.get('/myevents', protect, getMyEvents);
 
-// JOIN /api/events/:id/join
+// POST /api/events/:id/join — Ikut event
 router.post('/:id/join', protect, joinEvent);
 
-// LEAVE /api/events/:id/leave
+// POST /api/events/:id/leave — Keluar dari event
 router.post('/:id/leave', protect, leaveEvent);
 
-// GET/PUT/DELETE /api/events/:id untuk detail/update/delete event tertentu
+// ============================================================
+// SINGLE EVENT ROUTES
+// ============================================================
+
+// GET /api/events/:id — Detail event (public)
+// PUT /api/events/:id — Update event (owner only, dengan validasi Zod)
+// DELETE /api/events/:id — Hapus event (owner only)
 router
   .route('/:id')
   .get(getEventById)
-  .put(protect, updateEvent)
+  .put(protect, validate(updateEventSchema), updateEvent)
   .delete(protect, deleteEvent);
 
 module.exports = router;

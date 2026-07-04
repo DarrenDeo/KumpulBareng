@@ -1,17 +1,30 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
-import { ThemeProvider } from '@/components/ThemeProvider';
+import { AuthProvider } from '@/context/AuthContext';
+import { QueryProvider } from '@/context/QueryProvider';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
-import { Toaster } from 'react-hot-toast'; // <-- 1. PASTIKAN TOASTER DIIMPOR
-import Script from 'next/script';
+import { Toaster } from 'react-hot-toast';
 
-const inter = Inter({ subsets: ['latin'] });
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ['latin'],
+  variable: '--font-plus-jakarta',
+  display: 'swap',
+});
+
+import NetworkIndicator from '@/components/ui/NetworkIndicator';
+
+import { ThemeProvider } from '@/components/ThemeProvider';
 
 export const metadata: Metadata = {
-  title: 'Kumpul Bareng',
-  description: 'Temukan teman untuk aktivitas dan Eventsmu!',
+  title: {
+    default: 'KumpulBareng — Platform Event & Komunitas',
+    template: '%s | KumpulBareng',
+  },
+  description:
+    'Temukan event seru, gabung komunitas, dan kumpul bareng teman-teman baru. Platform manajemen event terbaik di Indonesia.',
+  keywords: ['event', 'komunitas', 'kumpul bareng', 'acara', 'indonesia'],
 };
 
 export default function RootLayout({
@@ -20,28 +33,31 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        {/* Add the Midtrans script here */}
-        <Script
-          type="text/javascript"
-          src="https://app.sandbox.midtrans.com/snap/snap.js"
-          data-client-key={process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY}
-          strategy="beforeInteractive"
-        />
-      </head>
-      <body className={`${inter.className} flex flex-col min-h-screen`}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-        >
-          <Toaster position="top-center" /> {/* <-- 2. PASTIKAN TOASTER ADA DI SINI */}
-          <Navbar />
-          <main className="flex-grow container mx-auto px-4 py-8">
-            {children}
-          </main>
-          <Footer />
+    <html lang="id" suppressHydrationWarning>
+      <body
+        className={`${plusJakarta.variable} font-sans flex flex-col min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-50 transition-colors duration-300`}
+      >
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+          <QueryProvider>
+            <AuthProvider>
+              <NetworkIndicator />
+              <Toaster
+                position="top-center"
+                toastOptions={{
+                  duration: 3000,
+                  style: {
+                    borderRadius: '12px',
+                    fontSize: '14px',
+                  },
+                }}
+              />
+              <Navbar />
+              <main className="flex-grow pt-16 md:pt-18">
+                {children}
+              </main>
+              <Footer />
+            </AuthProvider>
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -3,216 +3,380 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import axios from 'axios';
-import Button from '@/components/ui/button';
-import { jwtDecode } from 'jwt-decode';
+import { motion } from 'framer-motion';
+import {
+  Calendar,
+  MapPin,
+  Users,
+  ArrowLeft,
+  Share2,
+  Ticket,
+  Clock,
+  UserCircle,
+  LogIn,
+  Edit3,
+  Trash2,
+  CreditCard,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+} from 'lucide-react';
+import { eventService } from '@/lib/api/services/event.service';
+import { paymentService } from '@/lib/api/services/stats.service';
+import { useAuth } from '@/context/AuthContext';
+import PaymentModal from '@/components/ui/PaymentModal';
+import { cn, formatDate, formatTime, formatCurrency, getCapacityPercentage, isEventPast, daysFromNow } from '@/lib/utils';
+import { CATEGORY_COLORS } from '@/types';
+import type { Event } from '@/types';
 import toast from 'react-hot-toast';
-
-// Deklarasikan 'snap' di scope global
-declare global {
-  interface Window {
-    snap: any;
-  }
-}
-
-// Definisikan tipe data
-interface User {
-  id: string;
-  name: string;
-}
-interface Event {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  location: string;
-  eventDate: string;
-  authorId: string; // Wajib ada untuk perbandingan
-  author: { name: string };
-  participants: User[];
-  price: number;
-  maxParticipants: number;
-}
-interface DecodedToken {
-  id: string;
-}
 
 export default function EventDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { id } = params;
-
+  const { user, isAuthenticated } = useAuth();
   const [event, setEvent] = useState<Event | null>(null);
-  const [currentUser, setCurrentUser] = useState<DecodedToken | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentData, setPaymentData] = useState<{ amount: number; orderId: string } | null>(null);
+
+  const eventId = params.id as string;
 
   useEffect(() => {
-    const token = localStorage.getItem('userToken');
-    if (token) {
-      setCurrentUser(jwtDecode(token));
-    }
-
-    if (id) {
-      const fetchEvent = async () => {
-        try {
-          const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/events/${id}`);
-          setEvent(response.data);
-        } catch (err) {
-          setError('Gagal memuat detail acara.');
-          toast.error('Gagal memuat detail acara.');
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchEvent();
-    }
-  }, [id]);
-
-  const handleDelete = async () => {
-    if (window.confirm('Apakah Anda yakin ingin menghapus acara ini?')) {
+    const fetchEvent = async () => {
       try {
-        const token = localStorage.getItem('userToken');
-        await axios.delete(`${process.env.NEXT_PUBLIC_API_URL}/api/events/${id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        toast.success('Acara berhasil dihapus!');
+        const res = await eventService.getEventById(eventId);
+        setEvent(res.data);
+      } catch {
+        toast.error('Event tidak ditemukan');
         router.push('/events');
-      } catch (err) {
-        toast.error('Gagal menghapus acara.');
+      } finally {
+        setIsLoading(false);
       }
+    };
+    if (eventId) fetchEvent();
+  }, [eventId, router]);
+
+  if (isLoading || !event) {
+    return (
+      <div className="container-custom py-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="h-56 skeleton rounded-2xl mb-6" />
+          <div className="space-y-4">
+            <div className="h-8 skeleton w-3/4" />
+            <div className="h-4 skeleton w-1/2" />
+            <div className="h-4 skeleton w-2/3" />
+            <div className="h-32 skeleton mt-6" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const participantCount = event._count?.participants ?? event.participants?.length ?? 0;
+  const capacity = getCapacityPercentage(participantCount, event.maxParticipants);
+  const isPast = isEventPast(event.eventDate);
+  const days = daysFromNow(event.eventDate);
+  const isOwner = user?.id === event.authorId || user?.id === event.author?.id;
+  const isParticipant = event.participants?.some((p) => p.id === user?.id) ?? false;
+  const isFull = participantCount >= event.maxParticipants;
+  const categoryColor = CATEGORY_COLORS[event.category] || CATEGORY_COLORS['Lainnya'];
+
+  const handleJoin = async () => {
+    if (!isAuthenticated) {
+      toast.error('Silakan login terlebih dahulu');
+      router.push('/login');
+      return;
+    }
+    setActionLoading('join');
+    try {
+      if (event.price > 0) {
+        // Paid event: create transaction and show modal
+        const txRes = await paymentService.createTransaction(eventId);
+        const orderId = txRes.data.transaction?.orderId || txRes.data.paymentInfo?.orderId;
+        const amount = txRes.data.transaction?.amount || txRes.data.paymentInfo?.amount || Math.round(event.price / event.maxParticipants);
+        
+        if (orderId) {
+          setPaymentData({ amount, orderId });
+          setIsPaymentModalOpen(true);
+        }
+      } else {
+        // Free event: direct join
+        await eventService.joinEvent(eventId);
+        toast.success('Berhasil bergabung ke event!');
+        
+        // Refresh event data
+        const res = await eventService.getEventById(eventId);
+        setEvent(res.data);
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Gagal bergabung ke event');
+    } finally {
+      setActionLoading(null);
     }
   };
 
-  const handleJoin = async () => {
-    const token = localStorage.getItem('userToken');
-    if (!token) {
-      toast.error('Anda harus login untuk ikut acara.');
-      return;
-    }
-
-    if (event && event.price > 0) {
-      try {
-        toast.loading('Membuat transaksi...');
-        const response = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/payments/create-transaction`,
-          { eventId: id },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        toast.dismiss();
-        const transactionToken = response.data.token;
-
-        window.snap.pay(transactionToken, {
-          onSuccess: function(result: any){
-            toast.success("Pembayaran berhasil! Anda telah bergabung.");
-            setTimeout(() => window.location.reload(), 1500);
-          },
-          onPending: function(result: any){
-            toast("Menunggu pembayaran Anda.");
-          },
-          onError: function(result: any){
-            toast.error("Pembayaran gagal.");
-          },
-        });
-      } catch (err) {
-        toast.dismiss();
-        toast.error('Gagal membuat transaksi.');
-      }
-    } else {
-      try {
-        await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/events/${id}/join`, {}, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        toast.success('Anda berhasil bergabung!');
-        window.location.reload();
-      } catch (err) {
-        toast.error('Gagal bergabung dengan acara.');
-      }
+  const handlePaymentSuccess = async () => {
+    if (!paymentData) return;
+    try {
+      await paymentService.simulateSuccess(paymentData.orderId);
+      toast.success('Pembayaran berhasil! Anda terdaftar sebagai peserta.');
+      setIsPaymentModalOpen(false);
+      
+      // Refresh event data
+      const res = await eventService.getEventById(eventId);
+      setEvent(res.data);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Gagal memverifikasi pembayaran');
     }
   };
 
   const handleLeave = async () => {
-    const token = localStorage.getItem('userToken');
-    if (!token) return;
-
-    if (window.confirm('Apakah Anda yakin ingin batal ikut acara ini?')) {
-      try {
-        await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/events/${id}/leave`, {}, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        toast.success('Anda telah batal ikut.');
-        window.location.reload();
-      } catch (err) {
-        toast.error('Gagal batal ikut acara.');
-      }
+    setActionLoading('leave');
+    try {
+      await eventService.leaveEvent(eventId);
+      toast.success('Berhasil keluar dari event');
+      const res = await eventService.getEventById(eventId);
+      setEvent(res.data);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Gagal keluar dari event');
+    } finally {
+      setActionLoading(null);
     }
-  }
+  };
 
-  if (loading) return <p className="text-center mt-10">Memuat acara...</p>;
-  if (error) return <p className="text-center mt-10 text-red-500">{error}</p>;
-  if (!event) return <p className="text-center mt-10">Acara tidak ditemukan.</p>;
-
-  // Hitung ulang setiap kali render untuk memastikan data terbaru
-  const isOwner = currentUser?.id === event.authorId;
-  const hasJoined = event.participants.some(p => p.id === currentUser?.id);
-  const pricePerPerson = event.maxParticipants > 0 ? event.price / event.maxParticipants : 0;
+  const handleDelete = async () => {
+    if (!confirm('Yakin ingin menghapus event ini? Tindakan ini tidak bisa dibatalkan.')) return;
+    setActionLoading('delete');
+    try {
+      await eventService.deleteEvent(eventId);
+      toast.success('Event berhasil dihapus');
+      router.push('/dashboard');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Gagal menghapus event');
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   return (
-    <div className="w-full max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8">
-      {/* Kolom Kiri: Detail Acara */}
-      <div className="md:col-span-2 bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md relative">
-        {/* Tombol Edit & Hapus */}
-        {isOwner && (
-          <div className="absolute top-4 right-4 flex gap-2">
-            <Link href={`/events/${id}/edit`} className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 text-sm no-underline flex items-center">
-              Edit
-            </Link>
-            <button onClick={handleDelete} className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600 text-sm">
-              Hapus
-            </button>
+    <div className="container-custom py-8">
+      {/* Back */}
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6">
+        <button onClick={() => router.back()} className="btn-ghost text-slate-500 -ml-4">
+          <ArrowLeft className="w-4 h-4" />
+          Kembali
+        </button>
+      </motion.div>
+
+      <div className="max-w-4xl mx-auto">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+          {/* Banner */}
+          <div className={cn(
+            'relative h-48 md:h-64 rounded-2xl overflow-hidden flex items-center justify-center mb-8',
+            categoryColor.from, categoryColor.to,
+            'bg-gradient-to-br'
+          )}>
+            <div className="text-white opacity-90 scale-[3] transform -rotate-12">
+              {categoryColor.icon}
+            </div>
+            {/* Badges */}
+            <div className="absolute top-4 left-4">
+              <span className="badge bg-white/90 dark:bg-black/40 backdrop-blur-sm text-slate-800 dark:text-white border-transparent text-sm font-bold shadow-sm">
+                {event.category}
+              </span>
+            </div>
+            {isPast && (
+              <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center backdrop-blur-[2px]">
+                <span className="px-4 py-2 rounded-xl bg-slate-900 text-white font-bold shadow-lg">
+                  Event Telah Selesai
+                </span>
+              </div>
+            )}
           </div>
-        )}
 
-        <span className="inline-block bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full dark:bg-blue-200 dark:text-blue-900 mb-4">
-          {event.category}
-        </span>
-        <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white mb-4">{event.title}</h1>
-        <div className="text-md text-gray-500 dark:text-gray-400 mb-6">
-          <p>Diselenggarakan oleh: <strong>{event.author.name}</strong></p>
-        </div>
-        <p className="text-lg text-gray-700 dark:text-gray-300 mb-6">{event.description}</p>
-        <div className="border-t border-b border-gray-200 dark:border-gray-700 py-6 my-6 space-y-4">
-          <div className="flex items-center"><span className="w-24 font-semibold">📍 Lokasi</span><span>{event.location}</span></div>
-          <div className="flex items-center"><span className="w-24 font-semibold">🗓️ Waktu</span><span>{new Date(event.eventDate).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' })}</span></div>
-        </div>
-        <div className="mt-8">
-          {event.price > 0 && <p className="text-2xl font-bold mb-4">Harga per orang: Rp {pricePerPerson.toLocaleString('id-ID')}</p>}
-          
-          {hasJoined ? (
-            <Button onClick={handleLeave} className="bg-red-500 hover:bg-red-600">
-              Batalkan Keikutsertaan
-            </Button>
-          ) : (
-            <Button onClick={handleJoin}>
-              {event.price > 0 ? 'Ikut & Bayar' : 'Ikut Acara (Gratis)'}
-            </Button>
-          )}
-        </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Main Content */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Title & Price */}
+              <div>
+                <h1 className="text-2xl md:text-4xl font-bold text-slate-900 dark:text-white mb-3">
+                  {event.title}
+                </h1>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className={cn(
+                    'badge-primary text-sm shadow-sm',
+                    event.price === 0 && 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400'
+                  )}>
+                    <Ticket className="w-4 h-4" />
+                    {event.price === 0 ? 'Gratis' : `${formatCurrency(Math.round(event.price / event.maxParticipants))} / orang`}
+                  </span>
+                  {!isPast && days <= 7 && days > 0 && (
+                    <span className="badge-warning text-sm shadow-sm">
+                      <Clock className="w-4 h-4" />
+                      {days} hari lagi
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Event Details */}
+              <div className="glass-card p-5 space-y-4">
+                <div className="flex items-start gap-3">
+                  <Calendar className="w-5 h-5 text-primary-600 dark:text-primary-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">{formatDate(event.eventDate)}</p>
+                    <p className="text-xs font-medium text-slate-500">{formatTime(event.eventDate)} WIB</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <MapPin className="w-5 h-5 text-primary-600 dark:text-primary-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">{event.location}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <UserCircle className="w-5 h-5 text-primary-600 dark:text-primary-400 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">Dibuat oleh {event.author?.name || 'Anonim'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="glass-card p-5">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-3">Deskripsi Event</h2>
+                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                  {event.description}
+                </p>
+              </div>
+
+              {/* Participants */}
+              {event.participants && event.participants.length > 0 && (
+                <div className="glass-card p-5">
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
+                    Peserta ({participantCount})
+                  </h2>
+                  <div className="flex flex-wrap gap-2">
+                    {event.participants.map((p) => (
+                      <span key={p.id} className="badge bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
+                        <UserCircle className="w-3 h-3" />
+                        {p.name || 'Anonim'}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Sidebar */}
+            <div className="space-y-4">
+              {/* Capacity Card */}
+              <div className="glass-card p-5 sticky top-24">
+                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Kapasitas Peserta</h3>
+                <div className="flex items-end gap-2 mb-2">
+                  <span className="text-3xl font-bold text-slate-900 dark:text-white">{participantCount}</span>
+                  <span className="text-sm font-medium text-slate-500 mb-1">/ {event.maxParticipants}</span>
+                </div>
+                <div className="progress-bar mb-4">
+                  <div
+                    className={cn('progress-fill', capacity >= 90 ? 'bg-red-500' : capacity >= 70 ? 'bg-amber-500' : 'bg-primary-600 dark:bg-primary-500')}
+                    style={{ width: `${capacity}%` }}
+                  />
+                </div>
+
+                {/* Action Button */}
+                {isPast ? (
+                  <div className="text-center py-3 text-sm font-medium text-slate-500">
+                    Event ini sudah selesai
+                  </div>
+                ) : isOwner ? (
+                  <div className="space-y-2">
+                    <Link href={`/events/${eventId}/edit`} className="btn-secondary w-full justify-center">
+                      <Edit3 className="w-4 h-4" />
+                      Edit Event
+                    </Link>
+                    <button
+                      onClick={handleDelete}
+                      disabled={actionLoading === 'delete'}
+                      className="btn-danger w-full justify-center"
+                    >
+                      {actionLoading === 'delete' ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                      Hapus Event
+                    </button>
+                  </div>
+                ) : isParticipant ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-center gap-2 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400 text-sm font-bold">
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      Kamu sudah terdaftar
+                    </div>
+                    <button
+                      onClick={handleLeave}
+                      disabled={actionLoading === 'leave'}
+                      className="btn-danger w-full justify-center"
+                    >
+                      {actionLoading === 'leave' ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <XCircle className="w-4 h-4" />
+                      )}
+                      Batal Ikut Event
+                    </button>
+                  </div>
+                ) : !isAuthenticated ? (
+                  <Link href="/login" className="btn-primary w-full justify-center btn-lg">
+                    <LogIn className="w-4 h-4" />
+                    Masuk untuk Bergabung
+                  </Link>
+                ) : isFull ? (
+                  <div className="text-center py-3 text-sm font-bold text-red-600 bg-red-50 rounded-lg border border-red-200 dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-400">
+                    Event sudah penuh
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleJoin}
+                    disabled={actionLoading === 'join'}
+                    className={cn(
+                      'w-full justify-center btn-lg',
+                      event.price > 0 ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'btn-primary'
+                    )}
+                  >
+                    {actionLoading === 'join' ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : event.price > 0 ? (
+                      <>
+                        <CreditCard className="w-4 h-4" />
+                        Bayar & Bergabung
+                      </>
+                    ) : (
+                      <>
+                        <Users className="w-4 h-4" />
+                        Gabung Gratis
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </motion.div>
       </div>
 
-      {/* Kolom Kanan: Daftar Peserta */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-8 h-fit">
-        <h2 className="text-2xl font-bold mb-4">Peserta ({event.participants.length} / {event.maxParticipants})</h2>
-        <ul className="space-y-3">
-          {event.participants.map(participant => (
-            <li key={participant.id} className="flex items-center gap-3">
-              <span className="bg-gray-200 dark:bg-gray-700 rounded-full h-8 w-8 flex items-center justify-center font-bold">{participant.name.charAt(0).toUpperCase()}</span>
-              <span>{participant.name}</span>
-            </li>
-          ))}
-          {event.participants.length === 0 && <p className="text-gray-500">Jadilah yang pertama ikut!</p>}
-        </ul>
-      </div>
+      {/* Payment Modal */}
+      {paymentData && (
+        <PaymentModal
+          isOpen={isPaymentModalOpen}
+          onClose={() => setIsPaymentModalOpen(false)}
+          onSuccess={handlePaymentSuccess}
+          amount={paymentData.amount}
+          orderId={paymentData.orderId}
+        />
+      )}
     </div>
   );
 }

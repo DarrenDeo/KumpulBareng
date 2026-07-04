@@ -1,25 +1,36 @@
 {
   "name": "server",
-  "version": "1.0.0",
-  "description": "",
+  "version": "2.0.0",
+  "description": "KumpulBareng API — Backend untuk platform manajemen event dan komunitas",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "db:migrate": "npx prisma migrate dev",
+    "db:deploy": "npx prisma migrate deploy",
+    "db:studio": "npx prisma studio",
+    "db:generate": "npx prisma generate"
   },
-  "keywords": [],
+  "keywords": [
+    "kumpulbareng",
+    "event-management",
+    "community"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@prisma/client": "^5.17.0",
     "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "express-async-handler": "^1.2.0",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
-    "midtrans-client": "^1.4.3",
-    "ngrok": "^4.0.1"
+    "morgan": "^1.10.0",
+    "winston": "^3.19.0",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.4",

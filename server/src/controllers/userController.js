@@ -1,119 +1,156 @@
-const asyncHandler = require('express-async-handler');
-const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-
-const prisma = new PrismaClient();
+const prisma = require('../lib/prismaClient');
+const { AppError, catchAsync } = require('../middleware/errorHandler');
+const { sendSuccess } = require('../utils/responseHelper');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+const JWT_EXPIRES_IN = '7d';
+const COOKIE_EXPIRES_DAYS = 7;
 
-// Fungsi untuk membuat token JWT
+/**
+ * Membuat JWT token
+ */
 const generateToken = (id) => {
-  return jwt.sign({ id }, JWT_SECRET, {
-    expiresIn: '30d',
-  });
+  return jwt.sign({ id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 };
 
-// @desc    Register a new user
+/**
+ * Set JWT sebagai HttpOnly Cookie pada response
+ */
+const setTokenCookie = (res, token) => {
+  const cookieOptions = {
+    expires: new Date(Date.now() + COOKIE_EXPIRES_DAYS * 24 * 60 * 60 * 1000),
+    httpOnly: true,        // Tidak bisa diakses oleh JavaScript (anti-XSS)
+    secure: process.env.NODE_ENV === 'production', // HTTPS only di production
+    sameSite: 'lax',       // CSRF protection
+    path: '/',
+  };
+  res.cookie('jwt', token, cookieOptions);
+};
+
+// @desc    Register user baru
 // @route   POST /api/users/register
 // @access  Public
-const registerUser = asyncHandler(async (req, res) => {
+const registerUser = catchAsync(async (req, res) => {
   const { name, email, password } = req.body;
 
-  if (!name || !email || !password) {
-    res.status(400);
-    throw new Error('Name, email, dan password wajib diisi');
-  }
-
-  // Cek apakah user sudah ada
-  const userExists = await prisma.user.findUnique({
-    where: { email },
-  });
-
+  // Cek apakah email sudah terdaftar
+  const userExists = await prisma.user.findUnique({ where: { email } });
   if (userExists) {
-    res.status(400);
-    throw new Error('User sudah terdaftar');
+    throw new AppError('Email sudah terdaftar. Silakan gunakan email lain.', 409);
   }
 
-  // Hash password
-  const salt = await bcrypt.genSalt(10);
+  // Hash password dengan bcrypt (salt rounds: 12 untuk keamanan lebih)
+  const salt = await bcrypt.genSalt(12);
   const hashedPassword = await bcrypt.hash(password, salt);
 
   // Buat user baru
   const user = await prisma.user.create({
-    data: {
-      name,
-      email,
-      password: hashedPassword,
-    },
+    data: { name, email, password: hashedPassword },
+    select: { id: true, name: true, email: true, createdAt: true },
   });
 
-  res.status(201).json({
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    token: generateToken(user.id),
-  });
+  // Generate token dan set sebagai HttpOnly cookie
+  const token = generateToken(user.id);
+  setTokenCookie(res, token);
+
+  sendSuccess(res, { user }, 'Registrasi berhasil! Selamat datang.', 201);
 });
 
 // @desc    Login user
 // @route   POST /api/users/login
 // @access  Public
-const loginUser = asyncHandler(async (req, res) => {
+const loginUser = catchAsync(async (req, res) => {
   const { email, password } = req.body;
 
-  const user = await prisma.user.findUnique({
-    where: { email },
-  });
-
+  // Cari user berdasarkan email (include password untuk comparison)
+  const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
-    res.status(401);
-    throw new Error('Email atau password salah');
+    throw new AppError('Email atau password salah.', 401);
   }
 
+  // Bandingkan password
   const isMatch = await bcrypt.compare(password, user.password);
-
   if (!isMatch) {
-    res.status(401);
-    throw new Error('Email atau password salah');
+    throw new AppError('Email atau password salah.', 401);
   }
 
-  res.status(200).json({
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    token: generateToken(user.id),
-  });
+  // Generate token dan set cookie
+  const token = generateToken(user.id);
+  setTokenCookie(res, token);
+
+  sendSuccess(res, {
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      createdAt: user.createdAt,
+    },
+  }, 'Login berhasil!');
 });
 
-// @desc    Get user stats (jumlah event yang dibuat, dll)
+// @desc    Logout user (hapus cookie)
+// @route   POST /api/users/logout
+// @access  Public
+const logoutUser = catchAsync(async (req, res) => {
+  res.cookie('jwt', '', {
+    httpOnly: true,
+    expires: new Date(0), // Expire immediately
+    path: '/',
+  });
+
+  sendSuccess(res, null, 'Logout berhasil!');
+});
+
+// @desc    Get user stats (jumlah event dibuat, diikuti, dll)
 // @route   GET /api/users/stats
 // @access  Private
-const getUserStats = asyncHandler(async (req, res) => {
-  // req.user di-inject dari middleware protect
+const getUserStats = catchAsync(async (req, res) => {
   const userId = req.user.id;
 
-  const eventsCreated = await prisma.event.count({
-    where: { authorId: userId },
-  });
+  // Jalankan semua query secara paralel untuk efisiensi
+  const [eventsCreated, eventsJoined, totalParticipantsInMyEvents, upcomingEvents] = await Promise.all([
+    // Jumlah event yang dibuat user
+    prisma.event.count({ where: { authorId: userId } }),
+    // Jumlah event yang diikuti user
+    prisma.event.count({
+      where: { participants: { some: { id: userId } } },
+    }),
+    // Total peserta di semua event yang dibuat user
+    prisma.user.count({
+      where: {
+        joinedEvents: { some: { authorId: userId } },
+      },
+    }),
+    // Jumlah event upcoming yang dibuat user
+    prisma.event.count({
+      where: {
+        authorId: userId,
+        eventDate: { gte: new Date() },
+      },
+    }),
+  ]);
 
-  // Kalau nantinya mau ditambah stats lain, tinggal tambahkan di sini
-  res.status(200).json({
+  sendSuccess(res, {
     eventsCreated,
+    eventsJoined,
+    totalParticipantsInMyEvents,
+    upcomingEvents,
   });
 });
 
-// @desc    Get current logged-in user
+// @desc    Get current logged-in user profile
 // @route   GET /api/users/me
 // @access  Private
-const getMe = asyncHandler(async (req, res) => {
-  // req.user sudah berisi data user dari middleware protect
-  res.status(200).json(req.user);
+const getMe = catchAsync(async (req, res) => {
+  sendSuccess(res, { user: req.user });
 });
 
 module.exports = {
   registerUser,
   loginUser,
+  logoutUser,
   getUserStats,
   getMe,
 };

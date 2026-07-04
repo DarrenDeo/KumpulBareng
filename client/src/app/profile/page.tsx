@@ -1,76 +1,85 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-import Sidebar from '@/components/layout/Sidebar';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-
-// Definisikan tipe data untuk pengguna
-interface UserProfile {
-  id: string;
-  name: string;
-  email: string;
-}
+import { motion } from 'framer-motion';
+import { UserCircle, Mail, Calendar, ArrowLeft, Loader2 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { formatDate, getInitials } from '@/lib/utils';
 
 export default function ProfilePage() {
   const router = useRouter();
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
-    const token = localStorage.getItem('userToken');
-    if (!token) {
+    if (!isLoading && !isAuthenticated) {
       router.push('/login');
-      return;
     }
+  }, [isLoading, isAuthenticated, router]);
 
-    const fetchUserProfile = async () => {
-      try {
-        const response = await axios.get('${process.env.NEXT_PUBLIC_API_URL}/api/users/me', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setUser(response.data);
-      } catch (error) {
-        console.error('Gagal mengambil profil pengguna:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserProfile();
-  }, [router]);
-
-  if (loading) {
-    return <p className="text-center">Memuat profil...</p>;
+  if (isLoading || !user) {
+    return (
+      <div className="container-custom py-16 flex justify-center">
+        <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-col lg:flex-row gap-8 w-full">
-      <Sidebar />
-      <div className="flex-1">
-        <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md">
-          <h1 className="text-3xl font-bold mb-6 text-gray-900 dark:text-white">Profil Saya</h1>
-          {user ? (
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Nama</label>
-                <p className="text-lg text-gray-800 dark:text-gray-200">{user.name}</p>
+    <div className="container-custom py-8">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="max-w-2xl mx-auto"
+      >
+        <button onClick={() => router.back()} className="btn-ghost text-slate-500 -ml-4 mb-6">
+          <ArrowLeft className="w-4 h-4" />
+          Kembali
+        </button>
+
+        <div className="glass-card p-8 text-center">
+          {/* Avatar */}
+          <div className="w-24 h-24 rounded-2xl bg-primary-600 mx-auto flex items-center justify-center text-3xl font-bold text-white shadow-lg mb-6">
+            {getInitials(user.name)}
+          </div>
+
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">{user.name || 'User'}</h1>
+          <p className="text-sm font-medium text-slate-500 mb-8">Member KumpulBareng</p>
+
+          <div className="space-y-4 text-left">
+            <div className="glass-card p-4 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center shadow-sm">
+                <UserCircle className="w-5 h-5 text-primary-600 dark:text-primary-400" />
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Email</label>
-                <p className="text-lg text-gray-800 dark:text-gray-200">{user.email}</p>
-              </div>
-              <div className="pt-4">
-                <button className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors">
-                  Edit Profil (Segera Hadir)
-                </button>
+                <p className="text-xs font-medium text-slate-500">Nama</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">{user.name || '-'}</p>
               </div>
             </div>
-          ) : (
-            <p className="text-red-500">Gagal memuat data profil.</p>
-          )}
+
+            <div className="glass-card p-4 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center shadow-sm">
+                <Mail className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-500">Email</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">{user.email}</p>
+              </div>
+            </div>
+
+            <div className="glass-card p-4 flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center shadow-sm">
+                <Calendar className="w-5 h-5 text-primary-600 dark:text-primary-400" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-500">Bergabung Sejak</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-white">{formatDate(user.createdAt)}</p>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
