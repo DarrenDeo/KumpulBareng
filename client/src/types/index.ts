@@ -60,7 +60,7 @@ export interface CreateEventData {
   maxParticipants: number;
 }
 
-export interface UpdateEventData extends Partial<CreateEventData> {}
+export type UpdateEventData = Partial<CreateEventData>;
 
 export interface EventFilters {
   page?: number;
